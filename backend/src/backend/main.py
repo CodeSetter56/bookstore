@@ -1,17 +1,19 @@
-from fastapi import FastAPI, Depends
-from .db.db import get_db_connection
+from contextlib import asynccontextmanager
+from fastapi import FastAPI
 
-app = FastAPI()
+from .api.router import api_router
+from .db.init_db import init_db
+from .db.pool import pool
 
-@app.get("/")
-def read_root():
-    return {"message": "Hello from your backend!"}
 
-@app.get("/health")
-def check_database_connection(conn = Depends(get_db_connection)):
-    try:
-        result = conn.execute("SELECT 1")
-        if result.fetchone():
-            return {"status": "ok", "message": "Database is connected!"}
-    except Exception as e:
-        return {"status": "error", "message": str(e)}
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await pool.open()   
+    await init_db()      
+    yield
+    await pool.close()   
+
+
+app = FastAPI(lifespan=lifespan)
+
+app.include_router(api_router)  
